@@ -1,12 +1,10 @@
 """Module for interacting with the Waze API."""
 
 import requests
-from typing import Dict, Any, List, Tuple, Optional
-import json
+from typing import Dict, Any, Tuple
 from datetime import datetime, timedelta
 import time
 import logging
-import os
 import urllib.parse
 
 # Configure logging
@@ -87,7 +85,7 @@ def _get_coordinates_from_address(address: str) -> Tuple[float, float]:
             return geocode_db[address]
             
         # Return default coordinates for unknown addresses
-        logger.warning(f"Using default coordinates due to geocoding error")
+        logger.warning("Using default coordinates due to geocoding error")
         return (-31.9505, 115.8605)  # Default to Perth, Australia area
 
 def get_route(origin: str, destination: str) -> Dict[str, Any]:
@@ -124,7 +122,7 @@ def get_route(origin: str, destination: str) -> Dict[str, Any]:
         # Make the request to the Waze API
         response = requests.get(
             WAZE_ROUTING_URL, 
-            params=params,
+            params={str(k): str(v) for k, v in params.items()},  # Convert all params to strings
             headers={
                 "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
                 "Referer": "https://www.waze.com/live-map/",
