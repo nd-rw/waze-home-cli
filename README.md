@@ -12,14 +12,33 @@ A command-line tool that provides the quickest route between home and work using
 
 ## Installation
 
+### Option 1: Install from PyPI (recommended)
+
+```bash
+pip install waze-home
+```
+
+Or if you use uv:
+
+```bash
+uv pip install waze-home
+```
+
+### Option 2: Install from source
+
 1. Clone this repository:
-   ```
-   git clone https://github.com/yourusername/waze-home.git
-   cd waze-home
+   ```bash
+   git clone https://github.com/andrewlarder/waze-home-cli.git
+   cd waze-home-cli
    ```
 
-2. Install using uv:
+2. Install in development mode:
+   ```bash
+   pip install -e .
    ```
+   
+   Or with uv:
+   ```bash
    uv pip install -e .
    ```
 
@@ -27,32 +46,38 @@ A command-line tool that provides the quickest route between home and work using
 
 ### Get the fastest route home
 
-```
-python -m waze_home home
+```bash
+waze-home home
 ```
 
 ### Get the fastest route to work
 
-```
-python -m waze_home work
+```bash
+waze-home work
 ```
 
 ### Get a route between any two saved locations
 
-```
-python -m waze_home route --from location1 --to location2
+```bash
+waze-home route --from location1 --to location2
 ```
 
 ### Set a new location
 
-```
-python -m waze_home set-location office "123 Business St, City"
+```bash
+waze-home set-location office "123 Business St, City"
 ```
 
 ### List all saved locations
 
+```bash
+waze-home get-location
 ```
-python -m waze_home get-location
+
+You can also use the module form if you prefer:
+
+```bash
+python -m waze_home [command]
 ```
 
 ## Configuration

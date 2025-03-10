@@ -92,10 +92,12 @@ def route(origin: str, destination: str) -> None:
 @click.argument("address")
 def set_location(name: str, address: str) -> None:
     """Set a named location."""
-    set_location(name.lower(), address)
+    # Add error handling to avoid name conflict with the function
+    from .config import set_location as config_set_location
+    config_set_location(name.lower(), address)
     console.print(f"[green]Location '{name}' set to '{address}'[/]")
 
-@cli.command()
+@cli.command(name="locations")
 @click.argument("name", required=False)
 def get_location_cmd(name: Optional[str] = None) -> None:
     """Get a named location or list all locations."""
@@ -127,14 +129,132 @@ def get_location_cmd(name: Optional[str] = None) -> None:
 @cli.command(name="home")
 def go_home() -> None:
     """Get the fastest route home from your current location (work)."""
-    # Just a convenience wrapper around route
-    route(origin="work", destination="home")
+    # Direct call instead of passing to click command function
+    origin_address = get_location("work")
+    destination_address = get_location("home")
+    
+    if not origin_address:
+        console.print(f"[bold red]Error:[/] Location 'work' not found. Use 'set-location' to add it.")
+        sys.exit(1)
+        
+    if not destination_address:
+        console.print(f"[bold red]Error:[/] Location 'home' not found. Use 'set-location' to add it.")
+        sys.exit(1)
+    
+    with console.status(f"[bold green]Getting route from work to home...[/]"):
+        try:
+            route_data = get_route(origin_address, destination_address)
+            formatted_route = format_route_info(route_data)
+        except Exception as e:
+            console.print(f"[bold red]Error:[/] {str(e)}")
+            sys.exit(1)
+    
+    if formatted_route["status"] == "error":
+        console.print(f"[bold red]Error:[/] {formatted_route['message']}")
+        sys.exit(1)
+    
+    # Display route information
+    summary = formatted_route["summary"]
+    
+    # Create summary panel
+    summary_text = (
+        f"[bold]From:[/] work ({origin_address})\n"
+        f"[bold]To:[/] home ({destination_address})\n"
+        f"[bold]Departure:[/] {summary['departure_time']}\n"
+        f"[bold]Arrival:[/] {summary['arrival_time']}\n"
+        f"[bold]Travel time:[/] {summary['total_time']}\n"
+        f"[bold]Distance:[/] {summary['total_distance']}\n"
+        f"[bold]Traffic:[/] {formatted_route['traffic_conditions']}"
+    )
+    
+    console.print(Panel(summary_text, title="Route Summary", border_style="green"))
+    
+    # Create directions table
+    directions_table = Table(box=box.ROUNDED, title="Directions", show_header=False)
+    directions_table.add_column("Step", style="dim")
+    directions_table.add_column("Instruction")
+    
+    for i, direction in enumerate(formatted_route["directions"], 1):
+        directions_table.add_row(f"{i}.", direction)
+    
+    console.print(directions_table)
+    
+    # Display alternative routes if available
+    if "alternate_routes" in formatted_route:
+        alt_table = Table(title="Alternative Routes", box=box.SIMPLE)
+        alt_table.add_column("Route")
+        alt_table.add_column("Time")
+        alt_table.add_column("Distance")
+        
+        for alt in formatted_route["alternate_routes"]:
+            alt_table.add_row(alt["name"], alt["total_time"], alt["total_distance"])
+        
+        console.print(alt_table)
 
 @cli.command(name="work")
 def go_to_work() -> None:
     """Get the fastest route to work from your current location (home)."""
-    # Just a convenience wrapper around route
-    route(origin="home", destination="work")
+    # Direct call instead of passing to click command function
+    origin_address = get_location("home")
+    destination_address = get_location("work")
+    
+    if not origin_address:
+        console.print(f"[bold red]Error:[/] Location 'home' not found. Use 'set-location' to add it.")
+        sys.exit(1)
+        
+    if not destination_address:
+        console.print(f"[bold red]Error:[/] Location 'work' not found. Use 'set-location' to add it.")
+        sys.exit(1)
+    
+    with console.status(f"[bold green]Getting route from home to work...[/]"):
+        try:
+            route_data = get_route(origin_address, destination_address)
+            formatted_route = format_route_info(route_data)
+        except Exception as e:
+            console.print(f"[bold red]Error:[/] {str(e)}")
+            sys.exit(1)
+    
+    if formatted_route["status"] == "error":
+        console.print(f"[bold red]Error:[/] {formatted_route['message']}")
+        sys.exit(1)
+    
+    # Display route information
+    summary = formatted_route["summary"]
+    
+    # Create summary panel
+    summary_text = (
+        f"[bold]From:[/] home ({origin_address})\n"
+        f"[bold]To:[/] work ({destination_address})\n"
+        f"[bold]Departure:[/] {summary['departure_time']}\n"
+        f"[bold]Arrival:[/] {summary['arrival_time']}\n"
+        f"[bold]Travel time:[/] {summary['total_time']}\n"
+        f"[bold]Distance:[/] {summary['total_distance']}\n"
+        f"[bold]Traffic:[/] {formatted_route['traffic_conditions']}"
+    )
+    
+    console.print(Panel(summary_text, title="Route Summary", border_style="green"))
+    
+    # Create directions table
+    directions_table = Table(box=box.ROUNDED, title="Directions", show_header=False)
+    directions_table.add_column("Step", style="dim")
+    directions_table.add_column("Instruction")
+    
+    for i, direction in enumerate(formatted_route["directions"], 1):
+        directions_table.add_row(f"{i}.", direction)
+    
+    console.print(directions_table)
+    
+    # Display alternative routes if available
+    if "alternate_routes" in formatted_route:
+        alt_table = Table(title="Alternative Routes", box=box.SIMPLE)
+        alt_table.add_column("Route")
+        alt_table.add_column("Time")
+        alt_table.add_column("Distance")
+        
+        for alt in formatted_route["alternate_routes"]:
+            alt_table.add_row(alt["name"], alt["total_time"], alt["total_distance"])
+        
+        console.print(alt_table)
 
 if __name__ == "__main__":
     cli()
