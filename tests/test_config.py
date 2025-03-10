@@ -4,7 +4,6 @@ import pytest
 from unittest.mock import patch, mock_open
 import json
 import os
-from pathlib import Path
 
 from waze_home.config import (
     get_config,
