@@ -12,35 +12,99 @@ A command-line tool that provides the quickest route between home and work using
 
 ## Installation
 
-### Option 1: Install from PyPI (recommended)
+### Prerequisites
 
+- Python 3.10 or higher
+- pip (Python package installer)
+
+### Quick Install (Using Installation Scripts)
+
+Use the provided installation scripts:
+
+**On Linux/macOS:**
 ```bash
-pip install waze-home
+# Clone the repository
+git clone https://github.com/andrewlarder/waze-home-cli.git
+cd waze-home-cli
+
+# Make the script executable
+chmod +x install.sh
+
+# Run the installer
+./install.sh
 ```
 
-Or if you use uv:
+**On Windows:**
+```
+# Clone the repository
+git clone https://github.com/andrewlarder/waze-home-cli.git
+cd waze-home-cli
 
-```bash
-uv pip install waze-home
+# Run the installer
+install.bat
 ```
 
-### Option 2: Install from source
+These scripts will check for Python, create a virtual environment, install the package, and verify the installation.
 
-1. Clone this repository:
+
+### Building from source
+
+The simplest way to install and use the CLI:
+
+```bash
+# Clone the repository
+git clone https://github.com/andrewlarder/waze-home-cli.git
+cd waze-home-cli
+
+# Create a virtual environment (recommended)
+python -m venv venv
+
+# Activate the virtual environment
+# On Windows:
+venv\Scripts\activate
+# On macOS/Linux:
+source venv/bin/activate
+
+# Install the package
+pip install -e .
+```
+
+After installation, you can use the `waze-home` command directly in your terminal.
+
+
+
+### Manual Installation
+
+If you prefer to install the dependencies manually:
+
+1. Clone the repository:
    ```bash
    git clone https://github.com/andrewlarder/waze-home-cli.git
    cd waze-home-cli
    ```
 
-2. Install in development mode:
+2. Install the required packages:
    ```bash
-   pip install -e .
+   pip install -r requirements.txt
    ```
-   
-   Or with uv:
+
+3. Run the CLI using the module syntax:
    ```bash
-   uv pip install -e .
+   python -m waze_home [command]
    ```
+
+### Verify Installation
+
+To verify that the installation was successful, run:
+
+```bash
+waze-home --help
+```
+
+You should see the help message with available commands.
+
+
+After installation, they can use the `waze-home` command directly in their terminal.
 
 ## Usage
 
@@ -92,7 +156,3 @@ By default, the application stores locations in a config file at `~/.config/waze
 - Run linting: `ruff check .`
 - Run type checking: `mypy .`
 - Run tests: `pytest`
-
-## Note
-
-This is a mock implementation that simulates Waze routes. In a production environment, you would need to use the official Waze API or another routing service.
