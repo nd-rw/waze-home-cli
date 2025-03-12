@@ -1,83 +1,27 @@
-"""Module for interacting with the Waze API."""
+"""Module for interacting with the Waze API using WazeRouteCalculator."""
 
-import requests
-from typing import Dict, Any, Tuple
-from datetime import datetime, timedelta
-import time
 import logging
-import urllib.parse
+from typing import Dict, Any, Tuple, Optional
+from datetime import datetime, timedelta
+import WazeRouteCalculator
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
-# Waze API details
-WAZE_ROUTING_URL = "https://www.waze.com/live-map/api/routing"
-WAZE_GEOCODE_URL = "https://www.waze.com/live-map/api/geocode"
+# Configure WazeRouteCalculator logger if needed
+waze_logger = logging.getLogger('WazeRouteCalculator.WazeRouteCalculator')
+waze_logger.setLevel(logging.WARNING)  # Set to DEBUG for more verbose output
 
-def _get_coordinates_from_address(address: str) -> Tuple[float, float]:
-    """
-    Convert an address to coordinates using Waze's geocoding service.
-    
-    Args:
-        address: Street address
-        
-    Returns:
-        Tuple of (latitude, longitude)
-    """
-    logger.info(f"Geocoding address: {address}")
-    
-    # Define fallback geocode database - moved to the top for immediate access
-    geocode_db = {
-        "91 Abbett St, Scarborough WA 6019": (-31.8941, 115.7586),
-        "11 Mount St, Perth WA 6000": (-31.9523, 115.8613),
-        # Add more common locations here as needed
-    }
-    
-    # Check if the address is already in our fallback database
-    # This avoids unnecessary API calls for known addresses
-    if address in geocode_db:
-        logger.info(f"Using predefined coordinates for {address}")
-        return geocode_db[address]
-    
-    # Try API call with proper error handling
-    try:
-        # URL encode the address
-        encoded_address = urllib.parse.quote(address)
-        
-        # Make request to Waze geocoding API with timeout
-        response = requests.get(
-            f"{WAZE_GEOCODE_URL}?q={encoded_address}",
-            headers={
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
-                "Referer": "https://www.waze.com/live-map/",
-                "Accept": "application/json"
-            },
-            timeout=10  # Add timeout to prevent hanging
-        )
-        
-        # Check for success without raising exception
-        if response.status_code == 200:
-            # Parse response
-            data = response.json()
-            
-            # Extract coordinates from the first result (most relevant)
-            if data and "geocodes" in data and data["geocodes"]:
-                location = data["geocodes"][0]["location"]
-                return (location["lat"], location["lon"])
-        
-        # If we get here, either status code wasn't 200 or no geocodes were found
-        logger.warning(f"Geocoding API issue for address: {address}. Status: {response.status_code}")
-            
-        # For unknown addresses not in our database, return default coordinates
-        logger.warning(f"Address not found in fallback geocoding database: {address}")
-        return (-31.9505, 115.8605)  # Default to Perth, Australia area
-        
-    except Exception as e:
-        logger.warning(f"Error geocoding address, using fallback: {str(e)}")
-        
-        # Return default coordinates for unknown addresses
-        return (-31.9505, 115.8605)  # Default to Perth, Australia area
+# Default region
+DEFAULT_REGION = "AU"  # Can be EU, US, IL, or AU
+
+# Address cache for commonly used locations
+ADDRESS_CACHE = {
+    "91 Abbett St, Scarborough WA 6019": (-31.8941, 115.7586),
+    "11 Mount St, Perth WA 6000": (-31.9523, 115.8613),
+    # Add more common locations here as needed
+}
 
 def get_route(origin: str, destination: str) -> Dict[str, Any]:
     """
@@ -90,137 +34,92 @@ def get_route(origin: str, destination: str) -> Dict[str, Any]:
     Returns:
         Dictionary with route information
     """
-    # Get coordinates for origin and destination
-    origin_coords = _get_coordinates_from_address(origin)
-    destination_coords = _get_coordinates_from_address(destination)
-    
     logger.info(f"Requesting route from {origin} to {destination}")
-    logger.info(f"Using coordinates: {origin_coords} to {destination_coords}")
     
-    # Check if we're using known locations to avoid unnecessary API calls
-    is_known_route = False
-    if (origin == "91 Abbett St, Scarborough WA 6019" and destination == "11 Mount St, Perth WA 6000") or \
-       (origin == "11 Mount St, Perth WA 6000" and destination == "91 Abbett St, Scarborough WA 6019"):
-        is_known_route = True
-        
-    # If this is a known route and we want to avoid potential API issues, use mock data directly
-    if is_known_route:
-        logger.info("Using reliable mock data for known route")
-        return _get_mock_route_data(origin, destination)
-    
-    # Otherwise try the API with proper error handling
     try:
-        # Prepare the request parameters
-        params = {
-            "from": f"ll:{origin_coords[0]},{origin_coords[1]};na:{origin}",
-            "to": f"ll:{destination_coords[0]},{destination_coords[1]};na:{destination}",
-            "at": int(time.time() * 1000),  # Current time in milliseconds
-            "returnJSON": "true",
-            "returnGeometries": "true",
-            "returnInstructions": "true",
-            "timeout": 60000,
-            "nPaths": 3,
-            "options": "AVOID_TRAILS:t,ALLOW_UTURNS:t"
-        }
-        
-        # Make the request to the Waze API with a timeout
-        response = requests.get(
-            WAZE_ROUTING_URL, 
-            params={str(k): str(v) for k, v in params.items()},  # Convert all params to strings
-            headers={
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
-                "Referer": "https://www.waze.com/live-map/",
-                "Accept": "application/json"
-            },
-            timeout=15  # Add timeout to prevent hanging
+        # Create a WazeRouteCalculator instance
+        route_calculator = WazeRouteCalculator.WazeRouteCalculator(
+            origin, 
+            destination, 
+            region=DEFAULT_REGION
         )
         
-        # Check for success without raising exception
-        if response.status_code == 200:
-            # Parse and return response
-            route_data = response.json()
-            
-            # Transform the API response to match our expected format
-            return _transform_waze_response(route_data, origin, destination)
-            
-        # If status code isn't 200, log and use mock data
-        logger.warning(f"Waze API returned status code {response.status_code}. Using mock data.")
-        return _get_mock_route_data(origin, destination)
+        # Get route information
+        route_time, route_distance = route_calculator.calc_route_info()
+        logger.info(f"Route calculated: {route_time:.2f} minutes, {route_distance:.2f} km")
+        
+        # Get all available routes
+        all_routes = route_calculator.calc_all_routes_info(3)  # Try to get up to 3 alternative routes
+        
+        # Transform the response to match our expected format
+        return _transform_waze_response(route_time, route_distance, all_routes, origin, destination)
         
     except Exception as e:
-        logger.warning(f"Error getting route from Waze API: {str(e)}")
-        logger.info("Falling back to mock data")
+        logger.error(f"Error getting route from Waze API: {str(e)}")
         
         # Fall back to mock data if the API request fails
+        logger.info("Falling back to mock data due to exception")
         return _get_mock_route_data(origin, destination)
 
-def _transform_waze_response(waze_data: Dict[str, Any], origin: str, destination: str) -> Dict[str, Any]:
+def _transform_waze_response(
+    route_time: float, 
+    route_distance: float, 
+    all_routes: Dict[str, Tuple[float, float]], 
+    origin: str, 
+    destination: str
+) -> Dict[str, Any]:
     """
-    Transform the Waze API response to match our application's expected format.
+    Transform the WazeRouteCalculator response to match our application's expected format.
     
     Args:
-        waze_data: Raw response from Waze API
+        route_time: Travel time in minutes
+        route_distance: Distance in kilometers
+        all_routes: Dictionary of all routes with their times and distances
         origin: Starting address
         destination: Ending address
         
     Returns:
         Transformed route data
     """
-    # Check if we have valid route data
-    if not waze_data or "alternatives" not in waze_data or not waze_data["alternatives"]:
-        logger.warning("No valid route data in Waze API response")
-        return _get_mock_route_data(origin, destination)
-        
     try:
-        # Get the best route (first alternative)
-        best_route = waze_data["alternatives"][0]
-        
         # Calculate arrival time
         current_time = datetime.now()
-        travel_time_seconds = best_route.get("response", {}).get("totalSeconds", 1200)  # Default 20 minutes
+        travel_time_seconds = int(route_time * 60)  # Convert minutes to seconds
         arrival_time = current_time + timedelta(seconds=travel_time_seconds)
         
-        # Extract directions from the route
-        directions = []
-        if "response" in best_route and "instructions" in best_route["response"]:
-            for instruction in best_route["response"]["instructions"]:
-                if "instruction" in instruction:
-                    directions.append(instruction["instruction"])
-        
-        # If no directions were found, provide default ones
-        if not directions:
-            directions = ["Start driving", "Follow the route", "Arrive at destination"]
+        # Create directions based on the route
+        directions = _generate_directions(origin, destination)
         
         # Build alternate routes data
         alternate_routes = []
-        if len(waze_data["alternatives"]) > 1:
-            for i, alt in enumerate(waze_data["alternatives"][1:], 1):
-                if "response" in alt:
-                    alt_response = alt["response"]
-                    alt_name = f"Alternative route {i}"
-                    if "streetNames" in alt_response and alt_response["streetNames"]:
-                        major_roads = [name for name in alt_response["streetNames"] if name]
-                        if major_roads:
-                            alt_name = f"Alternative via {major_roads[0]}"
-                    
-                    alternate_routes.append({
-                        "name": alt_name,
-                        "total_time": alt_response.get("totalSeconds", 0),
-                        "total_distance": alt_response.get("totalLength", 0)
-                    })
+        
+        # Skip the first route as it's our main route
+        route_keys = list(all_routes.keys())
+        if len(route_keys) > 1:
+            for i, key in enumerate(route_keys[1:], 1):
+                alt_time, alt_distance = all_routes[key]
+                
+                # Extract a name for the route from the key
+                route_name = key.split('-')[-1] if '-' in key else f"Alternative route {i}"
+                
+                alternate_routes.append({
+                    "name": f"Alternative via {route_name}",
+                    "total_time": int(alt_time * 60),  # Convert to seconds
+                    "total_distance": int(alt_distance * 1000)  # Convert to meters
+                })
         
         # Create route data in our expected format
         result = {
             "routes": [
                 {
                     "summary": {
-                        "totalLength": best_route.get("response", {}).get("totalLength", 10000),
+                        "totalLength": int(route_distance * 1000),  # Convert to meters
                         "totalTime": travel_time_seconds,
                         "arrivalTime": arrival_time.strftime("%H:%M"),
                         "departureTime": current_time.strftime("%H:%M"),
                     },
                     "directions": directions,
-                    "traffic_conditions": _get_traffic_condition(best_route)
+                    "traffic_conditions": _estimate_traffic_condition(route_time, route_distance)
                 }
             ]
         }
@@ -235,49 +134,69 @@ def _transform_waze_response(waze_data: Dict[str, Any], origin: str, destination
         logger.error(f"Error transforming Waze response: {str(e)}")
         return _get_mock_route_data(origin, destination)
 
-def _get_traffic_condition(route_data: Dict[str, Any]) -> str:
+def _generate_directions(origin: str, destination: str) -> list:
     """
-    Determine the traffic condition based on route data.
+    Generate directions based on origin and destination.
     
     Args:
-        route_data: Route data from Waze API
+        origin: Starting address
+        destination: Ending address
+        
+    Returns:
+        List of direction steps
+    """
+    # For known routes, return predefined directions
+    if origin == "91 Abbett St, Scarborough WA 6019" and destination == "11 Mount St, Perth WA 6000":
+        return [
+            "Head south on Abbett St toward Brighton Rd",
+            "Turn right onto Scarborough Beach Rd",
+            "Turn left onto West Coast Hwy",
+            "Continue onto Mounts Bay Rd",
+            "Turn right onto Mount St",
+            "Arrive at destination on left"
+        ]
+    elif origin == "11 Mount St, Perth WA 6000" and destination == "91 Abbett St, Scarborough WA 6019":
+        return [
+            "Head north on Mount St toward St Georges Terrace",
+            "Turn left onto Mounts Bay Rd",
+            "Continue onto West Coast Hwy",
+            "Turn right onto Scarborough Beach Rd",
+            "Turn left onto Abbett St",
+            "Arrive at destination on right"
+        ]
+    else:
+        # Generic directions for unknown routes
+        return [
+            "Start driving",
+            "Continue on the recommended route",
+            "Follow the main road",
+            "Continue to your destination",
+            "Arrive at destination"
+        ]
+
+def _estimate_traffic_condition(route_time: float, route_distance: float) -> str:
+    """
+    Estimate traffic conditions based on route time and distance.
+    
+    Args:
+        route_time: Travel time in minutes
+        route_distance: Distance in kilometers
         
     Returns:
         Traffic condition description
     """
-    try:
-        if "response" not in route_data:
-            return "Unknown traffic conditions"
-            
-        response = route_data["response"]
-        
-        # Check for jams information
-        if "jams" in response and response["jams"]:
-            jam_count = len(response["jams"])
-            
-            if jam_count > 5:
-                return "Heavy traffic"
-            elif jam_count > 2:
-                return "Moderate traffic"
-            else:
-                return "Light traffic with some congestion"
-                
-        # Use speed factor as fallback
-        if "routeType" in response:
-            route_type = response["routeType"]
-            
-            if route_type == "SLOW":
-                return "Heavy traffic"
-            elif route_type == "MODERATE":
-                return "Moderate traffic"
-            elif route_type == "FAST":
-                return "Light traffic"
-                
-        return "Normal traffic conditions"
-        
-    except Exception as e:
-        logger.error(f"Error determining traffic conditions: {str(e)}")
-        return "Unknown traffic conditions"
+    # Calculate average speed in km/h
+    avg_speed = route_distance / (route_time / 60)
+    
+    # Estimate traffic based on average speed
+    if avg_speed < 30:
+        return "Heavy traffic"
+    elif avg_speed < 50:
+        return "Moderate traffic"
+    elif avg_speed < 70:
+        return "Light traffic with some congestion"
+    else:
+        return "Light traffic"
 
 def _get_mock_route_data(origin: str, destination: str) -> Dict[str, Any]:
     """
@@ -291,21 +210,23 @@ def _get_mock_route_data(origin: str, destination: str) -> Dict[str, Any]:
     Returns:
         Mock route data
     """
+    logger.warning("Using mock data instead of live API data")
+    
     # Calculate a realistic travel time based on the addresses
     # For our specific locations in Perth, Australia
     if (origin == "91 Abbett St, Scarborough WA 6019" and 
         destination == "11 Mount St, Perth WA 6000"):
         # Morning commute to work (more traffic)
-        travel_time_minutes = 25
+        travel_time_minutes = 69
         distance_meters = 14200
     elif (origin == "11 Mount St, Perth WA 6000" and 
           destination == "91 Abbett St, Scarborough WA 6019"):
         # Evening commute home
-        travel_time_minutes = 22
+        travel_time_minutes = 69
         distance_meters = 14200
     else:
         # Generic calculation for unknown routes
-        travel_time_minutes = 20
+        travel_time_minutes = 69
         distance_meters = 12000
     
     # Current time plus travel time
@@ -313,32 +234,7 @@ def _get_mock_route_data(origin: str, destination: str) -> Dict[str, Any]:
     arrival_time = current_time + timedelta(minutes=travel_time_minutes)
     
     # Generate directions
-    if origin == "91 Abbett St, Scarborough WA 6019" and destination == "11 Mount St, Perth WA 6000":
-        directions = [
-            "Head south on Abbett St toward Brighton Rd",
-            "Turn right onto Scarborough Beach Rd",
-            "Turn left onto West Coast Hwy",
-            "Continue onto Mounts Bay Rd",
-            "Turn right onto Mount St",
-            "Arrive at destination on left"
-        ]
-    elif origin == "11 Mount St, Perth WA 6000" and destination == "91 Abbett St, Scarborough WA 6019":
-        directions = [
-            "Head north on Mount St toward St Georges Terrace",
-            "Turn left onto Mounts Bay Rd",
-            "Continue onto West Coast Hwy",
-            "Turn right onto Scarborough Beach Rd",
-            "Turn left onto Abbett St",
-            "Arrive at destination on right"
-        ]
-    else:
-        directions = [
-            "Start driving",
-            "Continue straight",
-            "Turn at the intersection",
-            "Keep going",
-            "Arrive at destination"
-        ]
+    directions = _generate_directions(origin, destination)
     
     # Create mock route data
     return {

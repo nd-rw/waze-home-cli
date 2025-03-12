@@ -9,6 +9,7 @@ setup(
         "requests>=2.28.0",
         "rich>=12.0.0",
         "python-dotenv>=0.20.0",
+        "WazeRouteCalculator>=0.15.0",
     ],
     entry_points={
         "console_scripts": [
