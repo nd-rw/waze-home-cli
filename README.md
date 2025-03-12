@@ -2,6 +2,8 @@
 
 A command-line tool that provides the quickest route between home and work using Waze data.
 
+![Demo of Waze Home CLI in action](demo.gif)
+
 ## Features
 
 - Get the fastest route between home and work
